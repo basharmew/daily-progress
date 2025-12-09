@@ -1,0 +1,80 @@
+name: Realistic Random Auto Commit
+
+# runs every 15 minutes (so we can randomize inside each 15-min slot)
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: autocommit-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  maybe-commit:
+    runs-on: ubuntu-latest
+    env:
+      WINDOW_HOURS: 12               # window length to consider (hours)
+      INTERVAL_MINUTES: 15          # must match cron frequency in minutes
+      COMMITS_PER_WINDOW: 3         # default target commits per WINDOW_HOURS (changeable)
+      NOTES_FILE: notes.md          # file to update
+    steps:
+      - name: Checkout repo (with token)
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Set up git user
+        run: |
+          git config user.name "Auto Commit Bot"
+          git config user.email "actions@github.com"
+
+      - name: Decide whether to attempt a commit (probabilistic)
+        id: decide
+        run: |
+          # compute number of runs per window
+          runs=$(( (WINDOW_HOURS * 60) / INTERVAL_MINUTES ))
+          # probability as float
+          prob=$(awk -v c=$COMMITS_PER_WINDOW -v r=$runs 'BEGIN{printf "%.6f", c / r}')
+          # random float between 0 and 1
+          rand=$(awk 'BEGIN{srand(); print rand()}')
+          echo "runs=$runs" >> $GITHUB_OUTPUT
+          echo "probability=$prob" >> $GITHUB_OUTPUT
+          echo "random=$rand" >> $GITHUB_OUTPUT
+          # decide true/false
+          cmp=$(awk -v p=$prob -v r=$rand 'BEGIN{ if(r < p) print "true"; else print "false"}')
+          echo "should_commit=$cmp" >> $GITHUB_OUTPUT
+          echo "Decide: runs=$runs prob=$prob rand=$rand -> should_commit=$cmp"
+        shell: bash
+
+      - name: Maybe exit if not chosen
+        if: ${{ steps.decide.outputs.should_commit == 'false' }}
+        run: |
+          echo "Not chosen for this interval — exiting."
+          exit 0
+
+      - name: Randomize time within interval (sleep upto INTERVAL_MINUTES minutes)
+        run: |
+          max_s=$((INTERVAL_MINUTES * 60))
+          # use $RANDOM (0..32767) to create a random seconds 0..max_s-1
+          sec=$(( RANDOM % max_s ))
+          echo "Sleeping for $sec seconds to randomize timing inside interval..."
+          sleep $sec
+
+      - name: Update notes file with structured entry
+        run: |
+          TIMESTAMP="$(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          # create file if not exists and add entry (you can edit format)
+          mkdir -p "$(dirname "${{ env.NOTES_FILE }}")" || true
+          echo "- [$TIMESTAMP] Automated update from Actions" >> "${{ env.NOTES_FILE }}"
+          git add "${{ env.NOTES_FILE }}"
+
+      - name: Commit if there are changes
+        run: |
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          COMMIT_MSG="Auto-update: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          git commit -m "$COMMIT_MSG"
+          git push
