@@ -1,5 +1,8 @@
 name: Realistic Random Auto Commit
 
+permissions:
+  contents: write
+
 # runs every 15 minutes (so we can randomize inside each 15-min slot)
 on:
   schedule:
