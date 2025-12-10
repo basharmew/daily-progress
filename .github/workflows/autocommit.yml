@@ -29,8 +29,8 @@ jobs:
 
       - name: Set up git user
         run: |
-          git config user.name "Auto Commit Bot"
-          git config user.email "actions@github.com"
+          git config user.name "bashar"
+          git config user.email "basharmew@gmail.com"
 
       - name: Decide whether to attempt a commit (probabilistic)
         id: decide
