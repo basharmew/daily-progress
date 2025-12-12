@@ -6,7 +6,7 @@ permissions:
 # runs every 15 minutes (so we can randomize inside each 15-min slot)
 on:
   schedule:
-    - cron: '*/40 * * * *'
+    - cron: '*/55 * * * *'
   workflow_dispatch:
 
 concurrency:
@@ -17,8 +17,8 @@ jobs:
   maybe-commit:
     runs-on: ubuntu-latest
     env:
-      WINDOW_HOURS: 15               # window length to consider (hours)
-      INTERVAL_MINUTES: 40          # must match cron frequency in minutes
+      WINDOW_HOURS: 23               # window length to consider (hours)
+      INTERVAL_MINUTES: 55          # must match cron frequency in minutes
       COMMITS_PER_WINDOW: 2         # default target commits per WINDOW_HOURS (changeable)
       NOTES_FILE: notes.md          # file to update
     steps:
